@@ -4,7 +4,7 @@ To quickly run a small [Montage workflow](https://github.com/hyperflow-wms/monta
 - Install [kind](https://kind.sigs.k8s.io/) and [Helm](https://helm.sh/)
 - Create a small kind cluster using provided configuration: 
 ```
-kind create cluster --config local/kind-config-3n.yaml
+kind create cluster --config local/kind-config-3n.yaml # CHECK SECTION: RUN WITH CUSTOM HYPERFLOW !!!
 ```
 - Jump to section [Install resources](#install-resources)
 
@@ -109,6 +109,19 @@ If you don't want to use labels, you can use values from `minikube` directory th
 ### Install resources
 Assuming you are in repository main directory, install Kubernetes resources as follows:
 ```
+# otel 
+helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+helm upgrade -i  my-opentelemetry-collector open-telemetry/opentelemetry-collector -f ./values/cluster/collector-values.yaml
+
+# jaeger
+helm repo add jaegertracing https://jaegertracing.github.io/helm-charts
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.6.3/cert-manager.yaml
+# kubectl create namespace observability
+kubectl create -f https://github.com/jaegertracing/jaeger-operator/releases/download/v1.41.0/jaeger-operator.yaml # -n observability 
+kubectl apply -f ./values/cluster/jaeger-all-in-one.yaml
+
+
+# hyperflow - main
 helm upgrade -i nfs-server-provisioner charts/nfs-ganesha-server-and-external-provisioner/charts/nfs-server-provisioner --values values/cluster/nfs-server-provisioner.yml
 helm upgrade -i nfs-pv charts/nfs-volume --values values/cluster/nfs-volume.yaml
 helm upgrade -i redis charts/redis --values values/cluster/redis.yml
@@ -130,6 +143,26 @@ Once all pods are up and running or completed, you can manually run the workflow
 * `kubectl exec -it <hyperflow-engine-pod> sh`
 * `cd /work_dir`
 * `hflow run .`
+
+### RUN WITH CUSTOM HYPERFLOW
+1. Create docker registry and run kind cluster 
+```
+sh ./local/run_docker_registry.sh
+kind create cluster --config local/kind-config-3n-local-registry.yaml 
+kubectl apply -f local/kind-local-registry.yaml
+sh ./local/connect_docker_registry.sh 
+```
+2. Adding images to local repo
+```
+docker tag <hyperflow image> localhost:5001/myhfw
+docker push localhost:5001/myhfw
+docker pull localhost:5001/myhfw
+```
+3. Using images in file 
+Edit `values/cluster/hyperflow-engine.yaml` file 
+```
+ localhost:5000/myhfw:latest
+```
 
 ## Using Google Kubernetes Engine
 
